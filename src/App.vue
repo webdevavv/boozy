@@ -1,24 +1,42 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 
+// Константы
+const MAX_TILT = 30
+const SPEED = 1
+const BOX_SIZE = 50
+const BOX_COUNT = 5
+const BOX_COLORS = ['#42b983', '#647eff', '#ff9f43', '#ff5e7d', '#9067ff']
+
 // Состояния
 const orientation = ref({
   beta: null,
   gamma: null,
 })
 
-const position = ref({
-  x: window.innerWidth / 2 - 25,
-  y: window.innerHeight / 2 - 25,
-})
+const boxes = ref(
+  Array(BOX_COUNT)
+    .fill()
+    .map((_, i) => ({
+      id: i,
+      x: Math.random() * (window.innerWidth - BOX_SIZE),
+      y: Math.random() * (window.innerHeight - BOX_SIZE),
+      color: BOX_COLORS[i % BOX_COLORS.length],
+    })),
+)
 
 const isPermissionGranted = ref(false)
 const isIOS = ref(false)
 
-// Константы
-const MAX_TILT = 30
-const SPEED = 2
-const BOX_SIZE = 50
+// Проверка столкновений
+const checkCollision = (box1, box2) => {
+  return (
+    box1.x < box2.x + BOX_SIZE &&
+    box1.x + BOX_SIZE > box2.x &&
+    box1.y < box2.y + BOX_SIZE &&
+    box1.y + BOX_SIZE > box2.y
+  )
+}
 
 // Обработчик ориентации
 const handleOrientation = (event) => {
@@ -29,19 +47,37 @@ const handleOrientation = (event) => {
     gamma: event.gamma,
   }
 
-  // Рассчитываем движение с ограничениями
   const tiltX = Math.min(Math.max(event.gamma, -MAX_TILT), MAX_TILT)
   const tiltY = Math.min(Math.max(event.beta, -MAX_TILT), MAX_TILT)
 
-  position.value.x += tiltX * SPEED
-  position.value.y += tiltY * SPEED
+  // Обновляем позиции всех элементов
+  boxes.value.forEach((box) => {
+    const newX = box.x + tiltX * SPEED
+    const newY = box.y + tiltY * SPEED
 
-  // Границы экрана
-  const maxX = window.innerWidth - BOX_SIZE
-  const maxY = window.innerHeight - BOX_SIZE
+    // Проверяем границы экрана
+    const maxX = window.innerWidth - BOX_SIZE
+    const maxY = window.innerHeight - BOX_SIZE
 
-  position.value.x = Math.max(0, Math.min(position.value.x, maxX))
-  position.value.y = Math.max(0, Math.min(position.value.y, maxY))
+    box.x = Math.max(0, Math.min(newX, maxX))
+    box.y = Math.max(0, Math.min(newY, maxY))
+  })
+
+  // Обработка столкновений
+  for (let i = 0; i < boxes.value.length; i++) {
+    for (let j = i + 1; j < boxes.value.length; j++) {
+      if (checkCollision(boxes.value[i], boxes.value[j])) {
+        // Простое отталкивание
+        const dx = boxes.value[i].x - boxes.value[j].x
+        const dy = boxes.value[i].y - boxes.value[j].y
+
+        boxes.value[i].x += dx * 0.1
+        boxes.value[i].y += dy * 0.1
+        boxes.value[j].x -= dx * 0.1
+        boxes.value[j].y -= dy * 0.1
+      }
+    }
+  }
 }
 
 // Запрос разрешения для iOS
@@ -59,7 +95,6 @@ const requestPermission = () => {
       })
       .catch(console.error)
   } else {
-    // Для Android и других браузеров
     isPermissionGranted.value = true
     window.addEventListener('deviceorientation', handleOrientation)
   }
@@ -69,7 +104,6 @@ const requestPermission = () => {
 onMounted(() => {
   isIOS.value = /iPad|iPhone|iPod/.test(navigator.userAgent)
 
-  // Для iOS <13 и других устройств
   if (!isIOS.value || typeof DeviceOrientationEvent.requestPermission !== 'function') {
     requestPermission()
   }
@@ -84,12 +118,17 @@ onUnmounted(() => {
 <template>
   <div class="container">
     <div
+      v-for="box in boxes"
+      :key="box.id"
       class="box"
       :style="{
-        left: position.x + 'px',
-        top: position.y + 'px',
+        left: box.x + 'px',
+        top: box.y + 'px',
+        backgroundColor: box.color,
       }"
-    ></div>
+    >
+      {{ box.id + 1 }}
+    </div>
 
     <div class="debug-info">
       <p>Наклон телефона:</p>
@@ -116,9 +155,15 @@ onUnmounted(() => {
   position: absolute;
   width: 50px;
   height: 50px;
-  background: #42b983;
   border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  font-size: 18px;
   transition: transform 0.1s ease;
+  user-select: none;
 }
 
 .debug-info {
@@ -129,6 +174,7 @@ onUnmounted(() => {
   color: white;
   padding: 10px;
   border-radius: 5px;
+  font-family: Arial, sans-serif;
 }
 
 .permission-btn {
