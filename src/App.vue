@@ -1,3 +1,86 @@
+<script setup>
+import { ref, onMounted, onUnmounted } from 'vue'
+
+// Состояния
+const orientation = ref({
+  beta: null,
+  gamma: null,
+})
+
+const position = ref({
+  x: window.innerWidth / 2 - 25,
+  y: window.innerHeight / 2 - 25,
+})
+
+const isPermissionGranted = ref(false)
+const isIOS = ref(false)
+
+// Константы
+const MAX_TILT = 30
+const SPEED = 2
+const BOX_SIZE = 50
+
+// Обработчик ориентации
+const handleOrientation = (event) => {
+  if (!isPermissionGranted.value) return
+
+  orientation.value = {
+    beta: event.beta,
+    gamma: event.gamma,
+  }
+
+  // Рассчитываем движение с ограничениями
+  const tiltX = Math.min(Math.max(event.gamma, -MAX_TILT), MAX_TILT)
+  const tiltY = Math.min(Math.max(event.beta, -MAX_TILT), MAX_TILT)
+
+  position.value.x += tiltX * SPEED
+  position.value.y += tiltY * SPEED
+
+  // Границы экрана
+  const maxX = window.innerWidth - BOX_SIZE
+  const maxY = window.innerHeight - BOX_SIZE
+
+  position.value.x = Math.max(0, Math.min(position.value.x, maxX))
+  position.value.y = Math.max(0, Math.min(position.value.y, maxY))
+}
+
+// Запрос разрешения для iOS
+const requestPermission = () => {
+  if (
+    typeof DeviceOrientationEvent !== 'undefined' &&
+    typeof DeviceOrientationEvent.requestPermission === 'function'
+  ) {
+    DeviceOrientationEvent.requestPermission()
+      .then((response) => {
+        if (response === 'granted') {
+          isPermissionGranted.value = true
+          window.addEventListener('deviceorientation', handleOrientation)
+        }
+      })
+      .catch(console.error)
+  } else {
+    // Для Android и других браузеров
+    isPermissionGranted.value = true
+    window.addEventListener('deviceorientation', handleOrientation)
+  }
+}
+
+// Инициализация
+onMounted(() => {
+  isIOS.value = /iPad|iPhone|iPod/.test(navigator.userAgent)
+
+  // Для iOS <13 и других устройств
+  if (!isIOS.value || typeof DeviceOrientationEvent.requestPermission !== 'function') {
+    requestPermission()
+  }
+})
+
+// Очистка
+onUnmounted(() => {
+  window.removeEventListener('deviceorientation', handleOrientation)
+})
+</script>
+
 <template>
   <div class="container">
     <div
@@ -7,65 +90,18 @@
         top: position.y + 'px',
       }"
     ></div>
-    <p>Наклон телефона:</p>
-    <p>Beta (X): {{ orientation.beta?.toFixed(2) || 'Нет данных' }}</p>
-    <p>Gamma (Y): {{ orientation.gamma?.toFixed(2) || 'Нет данных' }}</p>
+
+    <div class="debug-info">
+      <p>Наклон телефона:</p>
+      <p>Beta (X): {{ orientation.beta?.toFixed(2) || 'Нет данных' }}</p>
+      <p>Gamma (Y): {{ orientation.gamma?.toFixed(2) || 'Нет данных' }}</p>
+    </div>
+
+    <button v-if="isIOS && !isPermissionGranted" @click="requestPermission" class="permission-btn">
+      Разрешить доступ к датчикам
+    </button>
   </div>
 </template>
-
-<script>
-import { ref, onMounted, onUnmounted } from 'vue'
-
-export default {
-  setup() {
-    const orientation = ref({
-      beta: null, // Наклон вперед/назад (X-ось)
-      gamma: null, // Наклон влево/вправо (Y-ось)
-    })
-
-    const position = ref({
-      x: 0,
-      y: 0,
-    })
-
-    const maxTilt = 30 // Максимальный угол наклона (градусы)
-    const speed = 2 // Скорость движения
-
-    const handleOrientation = (event) => {
-      orientation.value.beta = event.beta // Наклон вперед/назад (-180 до 180)
-      orientation.value.gamma = event.gamma // Наклон влево/вправо (-90 до 90)
-
-      // Ограничиваем угол наклона
-      const tiltX = Math.min(Math.max(event.gamma, -maxTilt), maxTilt)
-      const tiltY = Math.min(Math.max(event.beta, -maxTilt), maxTilt)
-
-      // Двигаем блок
-      position.value.x += tiltX * speed
-      position.value.y += tiltY * speed
-
-      // Ограничиваем позицию, чтобы блок не уходил за экран
-      const maxX = window.innerWidth - 50
-      const maxY = window.innerHeight - 50
-
-      position.value.x = Math.min(Math.max(position.value.x, 0), maxX)
-      position.value.y = Math.min(Math.max(position.value.y, 0), maxY)
-    }
-
-    onMounted(() => {
-      window.addEventListener('deviceorientation', handleOrientation)
-    })
-
-    onUnmounted(() => {
-      window.removeEventListener('deviceorientation', handleOrientation)
-    })
-
-    return {
-      orientation,
-      position,
-    }
-  },
-}
-</script>
 
 <style scoped>
 .container {
@@ -85,8 +121,28 @@ export default {
   transition: transform 0.1s ease;
 }
 
-p {
-  margin: 10px;
-  font-family: Arial, sans-serif;
+.debug-info {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 10px;
+  border-radius: 5px;
+}
+
+.permission-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 15px 25px;
+  background: #42b983;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 16px;
+  cursor: pointer;
+  z-index: 10;
 }
 </style>
