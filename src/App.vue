@@ -19,8 +19,8 @@ const boxes = ref(
     .fill()
     .map((_, i) => ({
       id: i,
-      x: Math.random() * (window.innerWidth - BOX_SIZE),
-      y: Math.random() * (window.innerHeight - BOX_SIZE),
+      x: getRandomPosition(window.innerWidth),
+      y: getRandomPosition(window.innerHeight),
       color: BOX_COLORS[i % BOX_COLORS.length],
     })),
 )
@@ -28,14 +28,53 @@ const boxes = ref(
 const isPermissionGranted = ref(false)
 const isIOS = ref(false)
 
-// Проверка столкновений
-const checkCollision = (box1, box2) => {
-  return (
-    box1.x < box2.x + BOX_SIZE &&
-    box1.x + BOX_SIZE > box2.x &&
-    box1.y < box2.y + BOX_SIZE &&
-    box1.y + BOX_SIZE > box2.y
-  )
+// Генерация случайной позиции с учетом границ
+function getRandomPosition(max) {
+  return Math.random() * (max - BOX_SIZE * 2) + BOX_SIZE
+}
+
+// Проверка столкновений с более точной физикой
+function resolveCollisions() {
+  for (let i = 0; i < boxes.value.length; i++) {
+    for (let j = i + 1; j < boxes.value.length; j++) {
+      const box1 = boxes.value[i]
+      const box2 = boxes.value[j]
+
+      // Вектор между центрами
+      const dx = box1.x + BOX_SIZE / 2 - (box2.x + BOX_SIZE / 2)
+      const dy = box1.y + BOX_SIZE / 2 - (box2.y + BOX_SIZE / 2)
+      const distance = Math.sqrt(dx * dx + dy * dy)
+
+      // Минимальное расстояние без столкновения
+      const minDistance = BOX_SIZE
+
+      if (distance < minDistance) {
+        // Угол столкновения
+        const angle = Math.atan2(dy, dx)
+        // Глубина проникновения
+        const overlap = minDistance - distance
+
+        // Корректировка позиций
+        const moveX = (overlap * Math.cos(angle)) / 2
+        const moveY = (overlap * Math.sin(angle)) / 2
+
+        box1.x += moveX
+        box1.y += moveY
+        box2.x -= moveX
+        box2.y -= moveY
+
+        // Гарантируем, что блоки остаются в пределах экрана
+        constrainToScreen(box1)
+        constrainToScreen(box2)
+      }
+    }
+  }
+}
+
+// Удерживаем блоки в пределах экрана
+function constrainToScreen(box) {
+  box.x = Math.max(0, Math.min(box.x, window.innerWidth - BOX_SIZE))
+  box.y = Math.max(0, Math.min(box.y, window.innerHeight - BOX_SIZE))
 }
 
 // Обработчик ориентации
@@ -50,34 +89,15 @@ const handleOrientation = (event) => {
   const tiltX = Math.min(Math.max(event.gamma, -MAX_TILT), MAX_TILT)
   const tiltY = Math.min(Math.max(event.beta, -MAX_TILT), MAX_TILT)
 
-  // Обновляем позиции всех элементов
+  // Двигаем все блоки
   boxes.value.forEach((box) => {
-    const newX = box.x + tiltX * SPEED
-    const newY = box.y + tiltY * SPEED
-
-    // Проверяем границы экрана
-    const maxX = window.innerWidth - BOX_SIZE
-    const maxY = window.innerHeight - BOX_SIZE
-
-    box.x = Math.max(0, Math.min(newX, maxX))
-    box.y = Math.max(0, Math.min(newY, maxY))
+    box.x += tiltX * SPEED
+    box.y += tiltY * SPEED
+    constrainToScreen(box)
   })
 
-  // Обработка столкновений
-  for (let i = 0; i < boxes.value.length; i++) {
-    for (let j = i + 1; j < boxes.value.length; j++) {
-      if (checkCollision(boxes.value[i], boxes.value[j])) {
-        // Простое отталкивание
-        const dx = boxes.value[i].x - boxes.value[j].x
-        const dy = boxes.value[i].y - boxes.value[j].y
-
-        boxes.value[i].x += dx * 0.1
-        boxes.value[i].y += dy * 0.1
-        boxes.value[j].x -= dx * 0.1
-        boxes.value[j].y -= dy * 0.1
-      }
-    }
-  }
+  // Разрешаем столкновения
+  resolveCollisions()
 }
 
 // Запрос разрешения для iOS
@@ -104,14 +124,24 @@ const requestPermission = () => {
 onMounted(() => {
   isIOS.value = /iPad|iPhone|iPod/.test(navigator.userAgent)
 
+  // Проверяем начальные столкновения
+  resolveCollisions()
+
   if (!isIOS.value || typeof DeviceOrientationEvent.requestPermission !== 'function') {
     requestPermission()
   }
+
+  // Обработка ресайза
+  window.addEventListener('resize', () => {
+    boxes.value.forEach((box) => constrainToScreen(box))
+    resolveCollisions()
+  })
 })
 
 // Очистка
 onUnmounted(() => {
   window.removeEventListener('deviceorientation', handleOrientation)
+  window.removeEventListener('resize', () => {})
 })
 </script>
 
@@ -125,15 +155,17 @@ onUnmounted(() => {
         left: box.x + 'px',
         top: box.y + 'px',
         backgroundColor: box.color,
+        transform: `rotate(${orientation.gamma || 0}deg)`,
       }"
     >
       {{ box.id + 1 }}
     </div>
 
     <div class="debug-info">
-      <p>Наклон телефона:</p>
-      <p>Beta (X): {{ orientation.beta?.toFixed(2) || 'Нет данных' }}</p>
-      <p>Gamma (Y): {{ orientation.gamma?.toFixed(2) || 'Нет данных' }}</p>
+      <p>
+        Наклон: X: {{ orientation.beta?.toFixed(1) || '-' }}° Y:
+        {{ orientation.gamma?.toFixed(1) || '-' }}°
+      </p>
     </div>
 
     <button v-if="isIOS && !isPermissionGranted" @click="requestPermission" class="permission-btn">
@@ -145,8 +177,9 @@ onUnmounted(() => {
 <style scoped>
 .container {
   position: relative;
-  width: 100vw;
-  height: 100vh;
+  width: calc(100vw - 20px);
+  margin: auto auto;
+  height: calc(100vw - 20px);
   overflow: hidden;
   background: #f0f0f0;
 }
@@ -155,26 +188,34 @@ onUnmounted(() => {
   position: absolute;
   width: 50px;
   height: 50px;
-  border-radius: 8px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
   font-weight: bold;
   font-size: 18px;
-  transition: transform 0.1s ease;
+  transition:
+    left 0.1s ease-out,
+    top 0.1s ease-out,
+    transform 0.1s ease;
   user-select: none;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16);
+  will-change: transform;
 }
 
 .debug-info {
   position: absolute;
   bottom: 20px;
   left: 20px;
+  right: 20px;
   background: rgba(0, 0, 0, 0.7);
   color: white;
-  padding: 10px;
-  border-radius: 5px;
+  padding: 10px 15px;
+  border-radius: 8px;
   font-family: Arial, sans-serif;
+  text-align: center;
+  font-size: 14px;
 }
 
 .permission-btn {
@@ -186,9 +227,10 @@ onUnmounted(() => {
   background: #42b983;
   color: white;
   border: none;
-  border-radius: 5px;
+  border-radius: 8px;
   font-size: 16px;
   cursor: pointer;
   z-index: 10;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 </style>
