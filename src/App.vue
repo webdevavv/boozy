@@ -158,7 +158,7 @@ onUnmounted(() => {
         transform: `rotate(${orientation.gamma || 0}deg)`,
       }"
     >
-      {{ box.id + 1 }}
+      Lorem ipsum dolor sit amet consectetur adipisicing elit. Dolores, eligendi.
     </div>
 
     <div class="debug-info">
@@ -185,9 +185,10 @@ onUnmounted(() => {
 }
 
 .box {
+  padding: 10px;
   position: absolute;
-  width: 50px;
-  height: 50px;
+  min-width: 50px;
+  min-height: 50px;
   border-radius: 12px;
   display: flex;
   align-items: center;
