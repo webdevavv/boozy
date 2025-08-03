@@ -1,31 +1,18 @@
-<script setup>
-import { onMounted } from 'vue'
-import Home from './pages/HomePage.vue'
-import Login from './pages/LoginPage.vue'
-import { user } from './stores/user.js'
-
-const isLoginPage = window.location.pathname === '/login'
-
-onMounted(() => {
-  user.init()
-})
-</script>
+<script setup></script>
 
 <template>
-  <div>
-    <nav>
-      <a href="/">Idea tracker</a>
-      <div>
-        <template v-if="user.current">
-          <span>{{ user.current.email }}</span>
-          <button type="button" @click="user.logout()">Logout</button>
-        </template>
-        <a v-else href="/login">Login</a>
-      </div>
-    </nav>
-    <main>
-      <Login v-if="isLoginPage" />
-      <Home v-else />
-    </main>
+  <div class="wrapper">
+    <router-view></router-view>
   </div>
 </template>
+
+<style scoped>
+.wrapper {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #609aff;
+}
+</style>
