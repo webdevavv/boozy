@@ -24,6 +24,9 @@ const login = async () => {
     router.push('/')
   } catch (error) {
     console.log(error)
+    if (error.status === 401) {
+      router.push('/register')
+    }
   }
 }
 </script>
