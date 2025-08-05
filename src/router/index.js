@@ -1,3 +1,4 @@
+import DevPage from '@/pages/DevPage.vue'
 import HomePage from '@/pages/HomePage.vue'
 import LoginPage from '@/pages/LoginPage.vue'
 import RegisterPage from '@/pages/RegisterPage.vue'
@@ -9,6 +10,7 @@ const router = createRouter({
     { path: '/', component: HomePage },
     { path: '/login', component: LoginPage },
     { path: '/register', component: RegisterPage },
+    { path: '/dev', component: DevPage },
   ],
 })
 

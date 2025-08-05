@@ -1,237 +1,98 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-
-// Константы
-const MAX_TILT = 30
-const SPEED = 1
-const BOX_SIZE = 50
-const BOX_COUNT = 5
-const BOX_COLORS = ['#42b983', '#647eff', '#ff9f43', '#ff5e7d', '#9067ff']
-
-// Состояния
-const orientation = ref({
-  beta: null,
-  gamma: null,
-})
-
-const boxes = ref(
-  Array(BOX_COUNT)
-    .fill()
-    .map((_, i) => ({
-      id: i,
-      x: getRandomPosition(window.innerWidth),
-      y: getRandomPosition(window.innerHeight),
-      color: BOX_COLORS[i % BOX_COLORS.length],
-    })),
-)
-
-const isPermissionGranted = ref(false)
-const isIOS = ref(false)
-
-// Генерация случайной позиции с учетом границ
-function getRandomPosition(max) {
-  return Math.random() * (max - BOX_SIZE * 2) + BOX_SIZE
-}
-
-// Проверка столкновений с более точной физикой
-function resolveCollisions() {
-  for (let i = 0; i < boxes.value.length; i++) {
-    for (let j = i + 1; j < boxes.value.length; j++) {
-      const box1 = boxes.value[i]
-      const box2 = boxes.value[j]
-
-      // Вектор между центрами
-      const dx = box1.x + BOX_SIZE / 2 - (box2.x + BOX_SIZE / 2)
-      const dy = box1.y + BOX_SIZE / 2 - (box2.y + BOX_SIZE / 2)
-      const distance = Math.sqrt(dx * dx + dy * dy)
-
-      // Минимальное расстояние без столкновения
-      const minDistance = BOX_SIZE
-
-      if (distance < minDistance) {
-        // Угол столкновения
-        const angle = Math.atan2(dy, dx)
-        // Глубина проникновения
-        const overlap = minDistance - distance
-
-        // Корректировка позиций
-        const moveX = (overlap * Math.cos(angle)) / 2
-        const moveY = (overlap * Math.sin(angle)) / 2
-
-        box1.x += moveX
-        box1.y += moveY
-        box2.x -= moveX
-        box2.y -= moveY
-
-        // Гарантируем, что блоки остаются в пределах экрана
-        constrainToScreen(box1)
-        constrainToScreen(box2)
-      }
-    }
-  }
-}
-
-// Удерживаем блоки в пределах экрана
-function constrainToScreen(box) {
-  box.x = Math.max(0, Math.min(box.x, window.innerWidth - BOX_SIZE))
-  box.y = Math.max(0, Math.min(box.y, window.innerHeight - BOX_SIZE))
-}
-
-// Обработчик ориентации
-const handleOrientation = (event) => {
-  if (!isPermissionGranted.value) return
-
-  orientation.value = {
-    beta: event.beta,
-    gamma: event.gamma,
-  }
-
-  const tiltX = Math.min(Math.max(event.gamma, -MAX_TILT), MAX_TILT)
-  const tiltY = Math.min(Math.max(event.beta, -MAX_TILT), MAX_TILT)
-
-  // Двигаем все блоки
-  boxes.value.forEach((box) => {
-    box.x += tiltX * SPEED
-    box.y += tiltY * SPEED
-    constrainToScreen(box)
-  })
-
-  // Разрешаем столкновения
-  resolveCollisions()
-}
-
-// Запрос разрешения для iOS
-const requestPermission = () => {
-  if (
-    typeof DeviceOrientationEvent !== 'undefined' &&
-    typeof DeviceOrientationEvent.requestPermission === 'function'
-  ) {
-    DeviceOrientationEvent.requestPermission()
-      .then((response) => {
-        if (response === 'granted') {
-          isPermissionGranted.value = true
-          window.addEventListener('deviceorientation', handleOrientation)
-        }
-      })
-      .catch(console.error)
-  } else {
-    isPermissionGranted.value = true
-    window.addEventListener('deviceorientation', handleOrientation)
-  }
-}
-
-// Инициализация
-onMounted(() => {
-  isIOS.value = /iPad|iPhone|iPod/.test(navigator.userAgent)
-
-  // Проверяем начальные столкновения
-  resolveCollisions()
-
-  if (!isIOS.value || typeof DeviceOrientationEvent.requestPermission !== 'function') {
-    requestPermission()
-  }
-
-  // Обработка ресайза
-  window.addEventListener('resize', () => {
-    boxes.value.forEach((box) => constrainToScreen(box))
-    resolveCollisions()
-  })
-})
-
-// Очистка
-onUnmounted(() => {
-  window.removeEventListener('deviceorientation', handleOrientation)
-  window.removeEventListener('resize', () => {})
-})
+import SettingsIcon from '@/components/icons/SettingsIcon.vue'
+import LoginInput from '@/components/ui/LoginInput.vue'
+import CommentIcon from '@/components/icons/CommentIcon.vue'
+import RepostIcon from '@/components/icons/RepostIcon.vue'
+import HeartIcon from '@/components/icons/HeartIcon.vue'
 </script>
-
 <template>
-  <div class="container">
-    <div
-      v-for="box in boxes"
-      :key="box.id"
-      class="box"
-      :style="{
-        left: box.x + 'px',
-        top: box.y + 'px',
-        backgroundColor: box.color,
-        transform: `rotate(${orientation.gamma || 0}deg)`,
-      }"
-    >
-      Lorem ipsum dolor sit amet consectetur adipisicing elit. Dolores, eligendi.
+  <div class="wrapper">
+    <div class="content">
+      <div class="sidebar shadow-xl bg-white rounded sticky top-1 py-2 px-3">
+        <div class="flex items-center justify-between mt-2 mb-5">
+          <div class="flex items-center gap-2">
+            <span
+              ><img class="w-[30px] h-[30px] rounded-4xl" src="/avatar.png" alt="avatar"
+            /></span>
+            <span class="text-lg font-bold">Иван</span>
+          </div>
+          <span class="w-[20px] h-[20px] cursor-pointer"><SettingsIcon /></span>
+        </div>
+        <LoginInput placeholder="Поиск" type="text" id="search" />
+        <div class="flex flex-col gap-2 mt-5">
+          <span class="font-bold">Категории:</span>
+          <span class="bg-[#ecf3ff] cursor-pointer px-2 py-1 rounded">Все</span>
+          <span class="cursor-pointer px-2 py-1 rounded transition hover:bg-[#ecf3ff]">Бизнес</span>
+          <span class="cursor-pointer px-2 py-1 rounded transition hover:bg-[#ecf3ff]"
+            >Анекдоты</span
+          >
+          <span class="cursor-pointer px-2 py-1 rounded transition hover:bg-[#ecf3ff]"
+            >Технологии</span
+          >
+        </div>
+      </div>
+      <div class="bg-white p-5 rounded flex-1 shadow-xl flex flex-col gap-5">
+        <div class="border-b pb-3 border-[#ecf3ff]">
+          <div class="flex items-center gap-2 h-[30px] mb-3">
+            <img src="/avatar.png" alt="Иван" class="w-[30px] h-[30px] rounded-4xl" />
+            <span>Иван</span>
+          </div>
+          <img
+            src="/1647870175_1-sportishka-com-p-piknik-s-vinom-na-prirode-turizm-krasivo-f-1.jpg"
+            alt="Это первый пост добавленный в Bozzy"
+            class="rounded"
+          />
+          <h3 class="text-lg font-bold text-gray-800">Это первый пост добавленный в Bozzy</h3>
+          <p class="text-md text-gray-700">
+            Bozzy - это мир алкоголиков, сеть, где собраны люди с общими интересами
+          </p>
+          <div class="flex items-center gap-3 my-3">
+            <span
+              class="bg-[#ecf3ff] p-1 rounded-xl flex items-center justify-center cursor-pointer"
+            >
+              <HeartIcon class="w-[20px] h-[20px]" />
+            </span>
+            <span
+              class="bg-[#ecf3ff] p-1 rounded-xl flex items-center justify-center cursor-pointer"
+            >
+              <CommentIcon class="w-[20px] h-[20px]" />
+            </span>
+            <span
+              class="bg-[#ecf3ff] p-1 rounded-xl flex items-center justify-center cursor-pointer"
+            >
+              <RepostIcon class="w-[20px] h-[20px]" />
+            </span>
+          </div>
+          <span class="text-[#609aff] bg-[#ecf3ff] text-xs px-2 py-1 rounded">Анекдот</span>
+        </div>
+      </div>
+      <div class="sidebar shadow-xl bg-white rounded sticky top-1">dfasd</div>
     </div>
-
-    <div class="debug-info">
-      <p>
-        Наклон: X: {{ orientation.beta?.toFixed(1) || '-' }}° Y:
-        {{ orientation.gamma?.toFixed(1) || '-' }}°
-      </p>
-    </div>
-
-    <button v-if="isIOS && !isPermissionGranted" @click="requestPermission" class="permission-btn">
-      Разрешить доступ к датчикам
-    </button>
+    <p class="fixed bottom-2 right-4 text-[#93bafd] text-xs">
+      Национальный проект по борьбе с алкоголизмом
+    </p>
   </div>
 </template>
 
 <style scoped>
-.container {
-  position: relative;
-  width: calc(100vw - 20px);
-  margin: auto auto;
-  height: 100%;
-  overflow: hidden;
-  background: #f0f0f0;
-}
-
-.box {
-  padding: 10px;
-  position: absolute;
-  min-width: 50px;
-  min-height: 50px;
-  border-radius: 12px;
+.wrapper {
+  min-height: 100dvh;
+  width: 100vw;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: bold;
-  font-size: 18px;
-  transition:
-    left 0.1s ease-out,
-    top 0.1s ease-out,
-    transform 0.1s ease;
-  user-select: none;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16);
-  will-change: transform;
+  align-items: flex-start;
+  padding: 0.25rem 0.25rem 1rem;
+  gap: 0.5rem;
 }
+.content {
+  max-width: 1200px;
+  margin: 0 auto;
 
-.debug-info {
-  position: absolute;
-  bottom: 20px;
-  left: 20px;
-  right: 20px;
-  background: rgba(0, 0, 0, 0.7);
-  color: white;
-  padding: 10px 15px;
-  border-radius: 8px;
-  font-family: Arial, sans-serif;
-  text-align: center;
-  font-size: 14px;
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
 }
-
-.permission-btn {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  padding: 15px 25px;
-  background: #42b983;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  cursor: pointer;
-  z-index: 10;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+.sidebar {
+  max-width: 300px;
+  width: 100%;
 }
 </style>
